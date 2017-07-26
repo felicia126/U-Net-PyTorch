@@ -478,3 +478,131 @@ class UNetSmall(nn.Module):
         layer9 = self.final(self.conv9_output(layer9))
 
         return layer9
+
+### DENSE U NET
+
+class _DenseLayer(nn.Sequential):
+    def __init__(self, num_input_features, growth_rate, bn_size, drop_rate):
+        super(_DenseLayer, self).__init__()
+        self.add_module('norm.1', nn.BatchNorm2d(num_input_features)),
+        self.add_module('relu.1', nn.ReLU(inplace=True)),
+        self.add_module('conv.1', nn.Conv2d(num_input_features, bn_size *
+                        growth_rate, kernel_size=1, stride=1, bias=False)),
+        self.add_module('norm.2', nn.BatchNorm2d(bn_size * growth_rate)),
+        self.add_module('relu.2', nn.ReLU(inplace=True)),
+        self.add_module('conv.2', nn.Conv2d(bn_size * growth_rate, growth_rate,
+                        kernel_size=3, stride=1, padding=1, bias=False)),
+        self.drop_rate = drop_rate
+
+    def forward(self, x):
+        new_features = super(_DenseLayer, self).forward(x)
+        if self.drop_rate > 0:
+            new_features = F.dropout(new_features, p=self.drop_rate, training=self.training)
+        return torch.cat([x, new_features], 1)
+
+
+class _DenseBlock(nn.Sequential):
+    def __init__(self, num_layers, num_input_features, bn_size, growth_rate, drop_rate):
+        super(_DenseBlock, self).__init__()
+        for i in range(num_layers):
+            layer = _DenseLayer(num_input_features + i * growth_rate, growth_rate, bn_size, drop_rate)
+            self.add_module('denselayer%d' % (i + 1), layer)
+
+class _DownSample(nn.Sequential):
+    def __init__(self, num_input_features, num_output_features):
+        super(_DownSample, self).__init__()
+        self.add_module('norm', nn.BatchNorm2d(num_input_features))
+        self.add_module('relu', nn.ReLU(inplace=True))
+        self.add_module('conv', nn.Conv2d(num_input_features, num_output_features,
+                                          kernel_size=2, stride=2, bias=False))
+
+class _UpSample(nn.Sequential):
+    def __init__(self, num_input_features, num_output_features):
+        super(_UpSample, self).__init__()
+        self.add_module('norm', nn.BatchNorm2d(num_input_features))
+        self.add_module('relu', nn.ReLU(inplace=True))
+        self.add_module('conv', nn.ConvTranspose2d(num_input_features, num_output_features,
+                                          kernel_size=2, stride=2, bias=False))
+
+class DenseUNet(nn.Module):
+
+    def __init__(self, input_features=1, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+        super(DenseUNet, self).__init__()
+
+        # Input
+
+        self.conv0 = nn.Conv2d(input_features, num_init_features, kernel_size=3, stride=1, padding=1, bias=False)
+        num_features = num_init_features
+
+        # Encoder
+
+        skip_connections = []
+        self.encoder_blocks = []
+        self.encoder_sample = []
+        for i in range(network_depth-1):
+            print "block: " + str(i) + " dense/trans"
+            denseblock = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
+            num_features = num_features + block_length * growth_rate
+            print num_features
+            skip_connections.append(num_features)
+            self.encoder_blocks.append(denseblock)
+            transition = _DownSample(num_input_features=num_features, num_output_features=num_features)
+            num_features = num_features
+            self.encoder_sample.append(transition)
+            print num_features
+            growth_rate = growth_rate * 2
+        self.encoder_blocks = nn.ModuleList(self.encoder_blocks)
+        self.encoder_sample = nn.ModuleList(self.encoder_sample)
+
+        # Bottom
+        print "bottom dense"
+        self.bottom_block = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
+        num_features = num_features + block_length * growth_rate
+        print num_features
+        # Decoder
+
+        self.decoder_blocks = []
+        self.decoder_sample = []
+        for i, skip in zip(range(network_depth-1), skip_connections[::-1]):
+            print "block: " + str(i) + " trans/dense"
+            growth_rate = growth_rate // 2
+            div = 4 if i==0 else 8
+            transition = _UpSample(num_input_features=num_features, num_output_features=num_features//div)
+            num_features = num_features // div + skip
+            print num_features
+            self.decoder_sample.append(transition)
+            denseblock = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
+            num_features = num_features + block_length * growth_rate
+            self.decoder_blocks.append(denseblock)
+            print num_features
+        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+        self.decoder_sample = nn.ModuleList(self.decoder_sample)
+
+        # Output
+        #self.pool1 = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)
+        self.norm1 = nn.BatchNorm2d(num_features)
+        self.relu1 = nn.ReLU(inplace=True)
+
+        self.conv1 = nn.Conv2d(num_features, 2, kernel_size=3, stride=1, padding=1, bias=False)
+
+    def forward(self, x):
+
+        x = self.conv0(x)
+
+        skip_connections = []
+
+        for (denseblock, transition) in zip(self.encoder_blocks, self.encoder_sample):
+            x = denseblock(x)
+            skip_connections.append(x)
+            x = transition(x)
+
+        x = self.bottom_block(x)
+        
+        for (transition, denseblock, skip) in zip(self.decoder_sample, self.decoder_blocks, skip_connections[::-1]):
+            x = transition(x)
+            x = torch.cat([x, skip], 1)
+            x = denseblock(x)
+
+        x = self.conv1(self.relu1(self.norm1(x)))
+
+        return F.softmax(x)
