@@ -37,9 +37,9 @@ epochs = 100
 image_directory = 'data/train'
 mask_directory = 'data/train_masks'
 
-print model_name
-print "augment="+str(augment)+" dropout="+str(dropout)
-print str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_size)
+print(model_name)
+print("augment="+str(augment)+" dropout="+str(dropout))
+print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_size))
 
 # GPU enabled
 cuda = torch.cuda.is_available()
@@ -63,7 +63,7 @@ val_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=Fals
 
 # train loop
 
-print 'Start training...'
+print('Start training...')
 
 for epoch in range(epochs):
 
@@ -157,4 +157,4 @@ for epoch in range(epochs):
 
 torch.save(net, "model_"+str(model_name)+".pht")
 
-print 'Finished training...'
+print('Finished training...')
