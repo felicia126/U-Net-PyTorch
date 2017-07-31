@@ -4,7 +4,7 @@ import networks
 import numpy as np
 from subprocess import call
 from loss import dice as dice_loss
-from data_load import LiverDataSet
+from data_load import CarDataSet
 
 import torch
 import torch.nn as nn
@@ -14,29 +14,28 @@ from torch.autograd import Variable
 
 ### variables ###
 
-model_name = '25D'
+model_name = 'DUNet'
 
-augment = True
-dropout = True
+augment = False
+dropout = False
 
 # using dice loss or cross-entropy loss
 dice = True
 
 # how many slices of context (2.5D)
-context = 2
+context = 0
 
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
-lr = 1e-2
-batch_size = 10
-num_samples = 1000
-low_lr_epoch = 80
+lr = 1e-4
+batch_size = 1
+num_samples = 100
+low_lr_epoch = 50
 epochs = 100
 
 #################
 
-
-train_folder = 'data/train' 
-val_folder = 'data/val'
+image_directory = 'data/train'
+mask_directory = 'data/train_masks'
 
 print model_name
 print "augment="+str(augment)+" dropout="+str(dropout)
@@ -45,30 +44,22 @@ print str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 # GPU enabled
 cuda = torch.cuda.is_available()
 
-# cross-entropy loss: weighting of negative vs positive pixels and NLL loss layer
-loss_weight = torch.FloatTensor([0.01, 0.99])
-if cuda: loss_weight = loss_weight.cuda()
-criterion = nn.NLLLoss2d(weight=loss_weight)
-
 # network and optimizer
-net = networks.VNet_Xtra(dice=dice, dropout=dropout, context=context)
+net = networks.DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
-# train data loader
-train = LiverDataSet(directory=train_folder, augment=augment, context=context)
-train_sampler = torch.utils.data.sampler.WeightedRandomSampler(weights=train.getWeights(), num_samples=num_samples)
-train_data = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True, sampler=train_sampler, num_workers=2)
+# data loader
+cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, augment=augment)
 
-# validation data loader (per patient)
-val = LiverDataSet(directory=val_folder, context=context)
-val_data_list = []
-patients = val.getPatients()
-for key in patients.keys():
-    samples = patients[key]
-    val_sampler = torch.utils.data.sampler.SubsetRandomSampler(samples)
-    val_data = torch.utils.data.DataLoader(val, batch_size=batch_size, shuffle=False, sampler=val_sampler, num_workers=2)
-    val_data_list.append(val_data)
+val_idx = np.random.choice(range(cars.__len__()), 100, replace=False)
+train_idx = [i for i in list(range(cars.__len__())) if i not in val_idx]
+train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
+val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
+
+train_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=True, sampler=train_sampler, num_workers=0)
+val_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=False, sampler=val_sampler, num_workers=0)
+
 
 # train loop
 
@@ -112,6 +103,10 @@ for epoch in range(epochs):
         
         # save and print statistics
         running_loss += loss.data[0]
+
+        if (i+1)%100 == 0:
+            print running_loss, i, running_loss/float(i+1)
+        if (i+1)%400 == 0: break
     
     # print statistics
     if dice:
@@ -126,41 +121,35 @@ for epoch in range(epochs):
     all_accuracy = []
 
     # only validate every 10 epochs
-    if (epoch+1)%10 != 0: continue
+    #if (epoch+1)%10 != 0: continue
 
-    # loop through patients
-    for val_data in val_data_list:
+    for i, data in enumerate(val_data):
 
-        accuracy = 0.0
-        intersect = 0.0
-        union = 0.0
+        # wrap data in Variable
+        inputs, labels = data
+        if cuda: inputs, labels = inputs.cuda(), labels.cuda()
+        inputs, labels = Variable(inputs, volatile=True), Variable(labels, volatile=True)
+        
+        # inference
+        outputs = net(inputs)
+        
+        # log softmax into softmax
+        if not dice: outputs = outputs.exp()
 
-        for i, data in enumerate(val_data):
+        # round outputs to either 0 or 1
+        outputs = outputs[:, 1, :, :].unsqueeze(dim=1).round()
 
-            # wrap data in Variable
-            inputs, labels = data
-            if cuda: inputs, labels = inputs.cuda(), labels.cuda()
-            inputs, labels = Variable(inputs, volatile=True), Variable(labels, volatile=True)
-            
-            # inference
-            outputs = net(inputs)
-            
-            # log softmax into softmax
-            if not dice: outputs = outputs.exp()
+        # accuracy
+        outputs, labels = outputs.data.cpu().numpy(), labels.data.cpu().numpy()
+        accuracy = (outputs == labels).sum() / float(outputs.size)
 
-            # round outputs to either 0 or 1
-            outputs = outputs[:, 1, :, :].unsqueeze(dim=1).round()
+        # dice
+        intersect = (outputs+labels==2).sum()
+        union = np.sum(outputs) + np.sum(labels)
+        dice = 1 - (2 * intersect + 1e-5) / (union + 1e-5)
 
-            # accuracy
-            outputs, labels = outputs.data.cpu().numpy(), labels.data.cpu().numpy()
-            accuracy += (outputs == labels).sum() / float(outputs.size)
-
-            # dice
-            intersect += (outputs+labels==2).sum()
-            union += np.sum(outputs) + np.sum(labels)
-
-        all_accuracy.append(accuracy / float(i+1))
-        all_dice.append(1 - (2 * intersect + 1e-5) / (union + 1e-5))
+        all_dice.append(dice)
+        all_accuracy.append(accuracy)
 
     print('    val dice loss: %.9f - val accuracy: %.8f' % (np.mean(all_dice), np.mean(all_accuracy)))
     

@@ -2,6 +2,47 @@ import os
 import torch
 import numpy as np
 import torch.utils.data as data_utils
+from scipy.ndimage import imread
+
+# Liver Dataset - segmentation task
+# when false selects both the liver and the tumor as positive labels
+class CarDataSet(torch.utils.data.Dataset):
+
+    def __init__(self, image_directory, mask_directory, augment=False):
+
+        self.augment = augment
+        self.image_directory = image_directory
+        self.mask_directory = mask_directory
+        self.image_files = os.listdir(image_directory)
+        self.image_files.sort()
+        self.mask_files = os.listdir(mask_directory)
+        self.image_files.sort()
+    
+    def __getitem__(self, idx):
+
+        inputs = np.zeros((3, 1280, 1920))
+        labels = np.zeros((1, 1280, 1920))
+
+        # random vertical offset 0, 1 or 2
+        i = int(np.random.rand()*3)
+
+        inputs[:, :, 0+i:1918+i] = imread(os.path.join(self.image_directory, self.image_files[idx])).transpose(2,0,1) / 255.0
+        labels[0, :, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx])).transpose(2,0,1)[0, :, :] / 255
+
+        #inputs = inputs[:,::8,::8]
+        #labels = labels[:,::8,::8]
+
+        # augment
+        if self.augment and np.random.rand() > 0.5:
+            inputs = np.fliplr(inputs)
+            labels = np.fliplr(labels)
+
+        features, targets = torch.from_numpy(inputs).float(), torch.from_numpy(labels).long()
+        return (features, targets)
+
+    def __len__(self):
+
+        return len(self.image_files)
 
 # Liver Dataset - segmentation task
 # when false selects both the liver and the tumor as positive labels

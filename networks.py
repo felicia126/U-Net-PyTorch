@@ -234,7 +234,7 @@ class VNet(nn.Module):
 
 class VNet_Xtra(nn.Module):
 
-    def __init__(self, dice=False, dropout=False, context=0):
+    def __init__(self, dice=True, dropout=False, context=0):
 
         super(VNet_Xtra, self).__init__()
 
@@ -408,29 +408,29 @@ class VNet_Xtra(nn.Module):
 
 class UNetSmall(nn.Module):
 
-    def __init__(self, dice=False):
+    def __init__(self, dice=True):
 
         super(UNetSmall, self).__init__()
 
-        self.conv1_input =      nn.Conv2d(1, 64/2, 3, padding=1)
-        self.conv1 =            nn.Conv2d(64/2, 64/2, 3, padding=1)
-        self.conv2_input =      nn.Conv2d(64/2, 128/2, 3, padding=1)
-        self.conv2 =            nn.Conv2d(128/2, 128/2, 3, padding=1)
-        self.conv3_input =      nn.Conv2d(128/2, 256/2, 3, padding=1)
-        self.conv3 =            nn.Conv2d(256/2, 256/2, 3, padding=1)
-        self.conv4_input =      nn.Conv2d(256/2, 512/2, 3, padding=1)
-        self.conv4 =            nn.Conv2d(512/2, 512/2, 3, padding=1)
+        self.conv1_input =      nn.Conv2d(3, 8, 3, padding=1)
+        self.conv1 =            nn.Conv2d(8, 8, 3, padding=1)
+        self.conv2_input =      nn.Conv2d(8, 32, 3, padding=1)
+        self.conv2 =            nn.Conv2d(32, 32, 3, padding=1)
+        self.conv3_input =      nn.Conv2d(32, 128, 3, padding=1)
+        self.conv3 =            nn.Conv2d(128, 128, 3, padding=1)
+        self.conv4_input =      nn.Conv2d(128, 512, 3, padding=1)
+        self.conv4 =            nn.Conv2d(512, 512, 3, padding=1)
 
-        self.conv7_up =         nn.ConvTranspose2d(512/2, 256/2, 2, 2)
-        self.conv7_input =      nn.Conv2d(512/2, 256/2, 3, padding=1)
-        self.conv7 =            nn.Conv2d(256/2, 256/2, 3, padding=1)
-        self.conv8_up =         nn.ConvTranspose2d(256/2, 128/2, 2, 2)
-        self.conv8_input =      nn.Conv2d(256/2, 128/2, 3, padding=1)
-        self.conv8 =            nn.Conv2d(128/2, 128/2, 3, padding=1)
-        self.conv9_up =         nn.ConvTranspose2d(128/2, 64/2, 2, 2)
-        self.conv9_input =      nn.Conv2d(128/2, 64/2, 3, padding=1)
-        self.conv9 =            nn.Conv2d(64/2, 64/2, 3, padding=1)
-        self.conv9_output =     nn.Conv2d(64/2, 2, 1)
+        self.conv7_up =         nn.ConvTranspose2d(512, 128, 4, 4)
+        self.conv7_input =      nn.Conv2d(128+128, 128, 3, padding=1)
+        self.conv7 =            nn.Conv2d(128, 128, 3, padding=1)
+        self.conv8_up =         nn.ConvTranspose2d(128, 32, 4, 4)
+        self.conv8_input =      nn.Conv2d(32+32, 32, 3, padding=1)
+        self.conv8 =            nn.Conv2d(32, 32, 3, padding=1)
+        self.conv9_up =         nn.ConvTranspose2d(32, 8, 4, 4)
+        self.conv9_input =      nn.Conv2d(8+8, 8, 3, padding=1)
+        self.conv9 =            nn.Conv2d(8, 8, 3, padding=1)
+        self.conv9_output =     nn.Conv2d(8, 2, 1)
 
         if dice:
             self.final =        F.softmax
@@ -446,36 +446,52 @@ class UNetSmall(nn.Module):
 
     def forward(self, x):
 
+        #print "start"
+
         layer1 = F.relu(self.conv1_input(x))
         layer1 = F.relu(self.conv1(layer1))
 
-        layer2 = F.max_pool2d(layer1, 2)
+        #print "layer1: " + str(layer1.size())
+
+        layer2 = F.max_pool2d(layer1, 4)
         layer2 = F.relu(self.conv2_input(layer2))
         layer2 = F.relu(self.conv2(layer2))
 
-        layer3 = F.max_pool2d(layer2, 2)
+        #print "layer2: " + str(layer2.size())
+
+        layer3 = F.max_pool2d(layer2, 4)
         layer3 = F.relu(self.conv3_input(layer3))
         layer3 = F.relu(self.conv3(layer3))
 
-        layer4 = F.max_pool2d(layer3, 2)
+        #print "layer3: " + str(layer3.size())
+
+        layer4 = F.max_pool2d(layer3, 4)
         layer4 = F.relu(self.conv4_input(layer4))
         layer4 = F.relu(self.conv4(layer4))
+
+        #print "layer4: " + str(layer4.size())
 
         layer7 = F.relu(self.conv7_up(layer4))
         layer7 = torch.cat((layer3, layer7), 1)
         layer7 = F.relu(self.conv7_input(layer7))
         layer7 = F.relu(self.conv7(layer7))
 
+        #print "layer7: " + str(layer7.size())
+
         layer8 = F.relu(self.conv8_up(layer7))
         layer8 = torch.cat((layer2, layer8), 1)
         layer8 = F.relu(self.conv8_input(layer8))
         layer8 = F.relu(self.conv8(layer8))
+
+        #print "layer8: " + str(layer8.size())
 
         layer9 = F.relu(self.conv9_up(layer8))
         layer9 = torch.cat((layer1, layer9), 1)
         layer9 = F.relu(self.conv9_input(layer9))
         layer9 = F.relu(self.conv9(layer9))
         layer9 = self.final(self.conv9_output(layer9))
+
+        #print "end"
 
         return layer9
 
@@ -514,7 +530,7 @@ class _DownSample(nn.Sequential):
         self.add_module('norm', nn.BatchNorm2d(num_input_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(num_input_features, num_output_features,
-                                          kernel_size=2, stride=2, bias=False))
+                                          kernel_size=4, stride=4, bias=False))
 
 class _UpSample(nn.Sequential):
     def __init__(self, num_input_features, num_output_features):
@@ -522,16 +538,19 @@ class _UpSample(nn.Sequential):
         self.add_module('norm', nn.BatchNorm2d(num_input_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.ConvTranspose2d(num_input_features, num_output_features,
-                                          kernel_size=2, stride=2, bias=False))
+                                          kernel_size=4, stride=4, bias=False))
 
 class DenseUNet(nn.Module):
 
-    def __init__(self, input_features=1, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+    def __init__(self, input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
         super(DenseUNet, self).__init__()
 
         # Input
 
         self.conv0 = nn.Conv2d(input_features, num_init_features, kernel_size=3, stride=1, padding=1, bias=False)
+        #self.down0 = transition = _DownSample(num_input_features=num_init_features, num_output_features=num_init_features)
+        #self.pool0 = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1, return_indices=True)
+
         num_features = num_init_features
 
         # Encoder
@@ -540,46 +559,39 @@ class DenseUNet(nn.Module):
         self.encoder_blocks = []
         self.encoder_sample = []
         for i in range(network_depth-1):
-            print "block: " + str(i) + " dense/trans"
             denseblock = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
             num_features = num_features + block_length * growth_rate
-            print num_features
             skip_connections.append(num_features)
             self.encoder_blocks.append(denseblock)
             transition = _DownSample(num_input_features=num_features, num_output_features=num_features)
             num_features = num_features
             self.encoder_sample.append(transition)
-            print num_features
             growth_rate = growth_rate * 2
         self.encoder_blocks = nn.ModuleList(self.encoder_blocks)
         self.encoder_sample = nn.ModuleList(self.encoder_sample)
 
         # Bottom
-        print "bottom dense"
         self.bottom_block = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
         num_features = num_features + block_length * growth_rate
-        print num_features
         # Decoder
 
         self.decoder_blocks = []
         self.decoder_sample = []
         for i, skip in zip(range(network_depth-1), skip_connections[::-1]):
-            print "block: " + str(i) + " trans/dense"
             growth_rate = growth_rate // 2
             div = 4 if i==0 else 8
             transition = _UpSample(num_input_features=num_features, num_output_features=num_features//div)
             num_features = num_features // div + skip
-            print num_features
             self.decoder_sample.append(transition)
             denseblock = _DenseBlock(num_layers=block_length, num_input_features=num_features, bn_size=bn_size, growth_rate=growth_rate, drop_rate=drop_rate)
             num_features = num_features + block_length * growth_rate
             self.decoder_blocks.append(denseblock)
-            print num_features
         self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
         self.decoder_sample = nn.ModuleList(self.decoder_sample)
 
         # Output
         #self.pool1 = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1)
+        #self.up1 = _UpSample(num_input_features=num_features, num_output_features=num_features)
         self.norm1 = nn.BatchNorm2d(num_features)
         self.relu1 = nn.ReLU(inplace=True)
 
@@ -590,19 +602,21 @@ class DenseUNet(nn.Module):
         x = self.conv0(x)
 
         skip_connections = []
-
+        #print x.size()
         for (denseblock, transition) in zip(self.encoder_blocks, self.encoder_sample):
             x = denseblock(x)
             skip_connections.append(x)
             x = transition(x)
-
+        #    print x.size()
+        #print "bottom"
         x = self.bottom_block(x)
         
         for (transition, denseblock, skip) in zip(self.decoder_sample, self.decoder_blocks, skip_connections[::-1]):
             x = transition(x)
             x = torch.cat([x, skip], 1)
             x = denseblock(x)
+        #    print x.size()
 
         x = self.conv1(self.relu1(self.norm1(x)))
-
+        #print x.size()
         return F.softmax(x)
