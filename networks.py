@@ -230,11 +230,10 @@ class VNet(nn.Module):
 # & down convolutions instead of pooling
 # & batch normalization for convolutions
 # & drop out before every upsample layer
-# & context parameter to make it 2.5 dim
 
 class VNet_Xtra(nn.Module):
 
-    def __init__(self, dice=True, dropout=False, context=0):
+    def __init__(self, dice=True, dropout=False, input_features=3):
 
         super(VNet_Xtra, self).__init__()
 
@@ -245,71 +244,71 @@ class VNet_Xtra(nn.Module):
             self.do8 = nn.Dropout2d()
             self.do9 = nn.Dropout2d()
 
-        self.conv1 =        nn.Conv2d(1 + context * 2, 16, 5, stride=1, padding=2)
+        self.conv1 =        nn.Conv2d(input_features, 16, 3, stride=1, padding=1)
         self.bn1 =          nn.BatchNorm2d(16)
         self.conv1_down =   nn.Conv2d(16, 32, 2, stride=2, padding=0)
         self.bn1_down =     nn.BatchNorm2d(32)
 
-        self.conv2a =       nn.Conv2d(32, 32, 5, stride=1, padding=2)
+        self.conv2a =       nn.Conv2d(32, 32, 3, stride=1, padding=1)
         self.bn2a =         nn.BatchNorm2d(32)
-        self.conv2b =       nn.Conv2d(32, 32, 5, stride=1, padding=2)
+        self.conv2b =       nn.Conv2d(32, 32, 3, stride=1, padding=1)
         self.bn2b =         nn.BatchNorm2d(32)
         self.conv2_down =   nn.Conv2d(32, 64, 2, stride=2, padding=0)
         self.bn2_down =     nn.BatchNorm2d(64)
 
-        self.conv3a =       nn.Conv2d(64, 64, 5, stride=1, padding=2)
+        self.conv3a =       nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.bn3a =         nn.BatchNorm2d(64)
-        self.conv3b =       nn.Conv2d(64, 64, 5, stride=1, padding=2)
+        self.conv3b =       nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.bn3b =         nn.BatchNorm2d(64)
-        self.conv3c =       nn.Conv2d(64, 64, 5, stride=1, padding=2)
+        self.conv3c =       nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.bn3c =         nn.BatchNorm2d(64)
         self.conv3_down =   nn.Conv2d(64, 128, 2, stride=2, padding=0)
         self.bn3_down =     nn.BatchNorm2d(128)
 
-        self.conv4a =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv4a =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn4a =         nn.BatchNorm2d(128)
-        self.conv4b =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv4b =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn4b =         nn.BatchNorm2d(128)
-        self.conv4c =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv4c =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn4c =         nn.BatchNorm2d(128)
         self.conv4_down =   nn.Conv2d(128, 256, 2, stride=2, padding=0)
         self.bn4_down =     nn.BatchNorm2d(256)
 
-        self.conv5a =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv5a =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn5a =         nn.BatchNorm2d(256)
-        self.conv5b =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv5b =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn5b =         nn.BatchNorm2d(256)
-        self.conv5c =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv5c =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn5c =         nn.BatchNorm2d(256)
         self.conv5_up =     nn.ConvTranspose2d(256, 128, 2, stride=2, padding=0)
         self.bn5_up =       nn.BatchNorm2d(128)
 
-        self.conv6a =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv6a =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn6a =         nn.BatchNorm2d(256)
-        self.conv6b =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv6b =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn6b =         nn.BatchNorm2d(256)
-        self.conv6c =       nn.Conv2d(256, 256, 5, stride=1, padding=2)
+        self.conv6c =       nn.Conv2d(256, 256, 3, stride=1, padding=1)
         self.bn6c =         nn.BatchNorm2d(256)
         self.conv6_up =     nn.ConvTranspose2d(256, 64, 2, stride=2, padding=0)
         self.bn6_up =       nn.BatchNorm2d(64)
 
-        self.conv7a =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv7a =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn7a =         nn.BatchNorm2d(128)
-        self.conv7b =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv7b =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn7b =         nn.BatchNorm2d(128)
-        self.conv7c =       nn.Conv2d(128, 128, 5, stride=1, padding=2)
+        self.conv7c =       nn.Conv2d(128, 128, 3, stride=1, padding=1)
         self.bn7c =         nn.BatchNorm2d(128)
         self.conv7_up =     nn.ConvTranspose2d(128, 32, 2, stride=2, padding=0)
         self.bn7_up =       nn.BatchNorm2d(32)
 
-        self.conv8a =       nn.Conv2d(64, 64, 5, stride=1, padding=2)
+        self.conv8a =       nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.bn8a =         nn.BatchNorm2d(64)
-        self.conv8b =       nn.Conv2d(64, 64, 5, stride=1, padding=2)
+        self.conv8b =       nn.Conv2d(64, 64, 3, stride=1, padding=1)
         self.bn8b =         nn.BatchNorm2d(64)
         self.conv8_up =     nn.ConvTranspose2d(64, 16, 2, stride=2, padding=0)
         self.bn8_up =       nn.BatchNorm2d(16)
 
-        self.conv9 =        nn.Conv2d(32, 32, 5, stride=1, padding=2)
+        self.conv9 =        nn.Conv2d(32, 32, 3, stride=1, padding=1)
         self.bn9 =          nn.BatchNorm2d(32)
         self.conv9_1x1 =    nn.Conv2d(32, 2, 1, stride=1, padding=0)
         self.bn9_1x1 =      nn.BatchNorm2d(2)
@@ -329,7 +328,7 @@ class VNet_Xtra(nn.Module):
     def forward(self, x):
 
         layer1 = F.relu(self.bn1(self.conv1(x)))
-        layer1 = torch.add(layer1, torch.cat([x[:,0:1,:,:]]*16,1))
+        #layer1 = torch.add(layer1, torch.cat([x[:,0:1,:,:]]*16,1))
 
         conv1 = F.relu(self.bn1_down(self.conv1_down(layer1)))
 
