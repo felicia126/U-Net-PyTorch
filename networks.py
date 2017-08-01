@@ -328,7 +328,6 @@ class VNet_Xtra(nn.Module):
     def forward(self, x):
 
         layer1 = F.relu(self.bn1(self.conv1(x)))
-        #layer1 = torch.add(layer1, torch.cat([x[:,0:1,:,:]]*16,1))
 
         conv1 = F.relu(self.bn1_down(self.conv1_down(layer1)))
 
