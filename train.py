@@ -22,11 +22,8 @@ dropout = False
 # using dice loss or cross-entropy loss
 dice = True
 
-# how many slices of context (2.5D)
-context = 0
-
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
-lr = 1e-4
+lr = 1e-2
 batch_size = 1
 num_samples = 100
 low_lr_epoch = 50
@@ -45,14 +42,14 @@ print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 cuda = torch.cuda.is_available()
 
 # network and optimizer
-net = networks.DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+net = networks.VNet_Xtra()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
 # data loader
 cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, augment=augment)
 
-val_idx = np.random.choice(range(cars.__len__()), 100, replace=False)
+val_idx = np.random.choice(range(cars.__len__()), 200, replace=False)
 train_idx = [i for i in list(range(cars.__len__())) if i not in val_idx]
 train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
 val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
@@ -60,6 +57,7 @@ val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
 train_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=True, sampler=train_sampler, num_workers=0)
 val_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=False, sampler=val_sampler, num_workers=0)
 
+print len(train_idx)
 
 # train loop
 
@@ -78,6 +76,7 @@ for epoch in range(epochs):
     # switch to train mode
     net.train()
     
+    start = time.time()
     for i, data in enumerate(train_data):
 
         # wrap data in Variables
@@ -104,24 +103,22 @@ for epoch in range(epochs):
         # save and print statistics
         running_loss += loss.data[0]
 
-        if (i+1)%100 == 0:
-            print running_loss, i, running_loss/float(i+1)
-        if (i+1)%400 == 0: break
+        if (i+1)%100 == 0: break
     
     # print statistics
     if dice:
         print('  [epoch %d] - train dice loss: %.3f' % (epoch + 1, running_loss/(i+1)))
     else:
         print('  [epoch %d] - train cross-entropy loss: %.3f' % (epoch + 1, running_loss/(i+1)))
+
+    # only validate every 10 epochs
+    if (epoch+1)%10 != 0: continue
     
     # switch to eval mode
     net.eval()
 
     all_dice = []
     all_accuracy = []
-
-    # only validate every 10 epochs
-    #if (epoch+1)%10 != 0: continue
 
     for i, data in enumerate(val_data):
 
