@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import torch.utils.data as data_utils
 from scipy.ndimage import imread
+from scipy.misc import imresize
 
 # Liver Dataset - segmentation task
 # when false selects both the liver and the tumor as positive labels
@@ -20,17 +21,27 @@ class CarDataSet(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
 
-        inputs = np.zeros((3, 1280, 1920))
-        labels = np.zeros((1, 1280, 1920))
+        inputs = np.zeros((1280, 1920, 3))
+        labels = np.zeros((1280, 1920))
 
         # random vertical offset 0, 1 or 2
         i = int(np.random.rand()*3)
 
-        inputs[:, :, 0+i:1918+i] = imread(os.path.join(self.image_directory, self.image_files[idx])).transpose(2,0,1) / 255.0
-        labels[0, :, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx])).transpose(2,0,1)[0, :, :] / 255
+        # load image and mask
+        inputs[:, 0+i:1918+i, :] = imread(os.path.join(self.image_directory, self.image_files[idx]))
+        labels[:, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx]))[:, :, 0]
 
-        #inputs = inputs[:,::8,::8]
-        #labels = labels[:,::8,::8]
+        # zoom in
+        inputs = imresize(inputs, 0.2)
+        labels = imresize(labels, 0.2)
+
+        # scale / normalize
+        inputs = inputs / 255.0
+        labels = labels / 255
+
+        # transpose inputs and add empty axis to labels
+        inputs = inputs.transpose(2,0,1)
+        labels = np.expand_dims(labels, 0)
 
         # augment
         if self.augment and np.random.rand() > 0.5:
