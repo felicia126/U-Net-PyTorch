@@ -20,11 +20,11 @@ augment = False
 dropout = False
 
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
-lr = 1e-3
+lr = 1e-2
 batch_size = 1
 num_samples = 100
-low_lr_epoch = 50
-epochs = 100
+low_lr_epoch = 10
+epochs = 20
 
 #################
 
@@ -39,7 +39,7 @@ print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 cuda = torch.cuda.is_available()
 
 # network and optimizer
-net = networks.UNetSmall()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+net = networks.VNet_Xtra()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 

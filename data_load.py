@@ -32,8 +32,8 @@ class CarDataSet(torch.utils.data.Dataset):
         labels[:, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx]))[:, :, 0]
 
         # zoom in
-        inputs = imresize(inputs, 0.125)
-        labels = imresize(labels, 0.125)
+        inputs = imresize(inputs, 0.25)
+        labels = imresize(labels, 0.25)
 
         # scale / normalize
         inputs = inputs / 255.0
