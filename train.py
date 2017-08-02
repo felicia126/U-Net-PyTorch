@@ -19,9 +19,6 @@ model_name = 'DUNet'
 augment = False
 dropout = False
 
-# using dice loss or cross-entropy loss
-dice = True
-
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
 lr = 1e-3
 batch_size = 1
@@ -57,8 +54,6 @@ val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
 train_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=True, sampler=train_sampler, num_workers=0)
 val_data = torch.utils.data.DataLoader(cars, batch_size=batch_size, shuffle=False, sampler=val_sampler, num_workers=0)
 
-print len(train_idx)
-
 # train loop
 
 print('Start training...')
@@ -87,13 +82,9 @@ for epoch in range(epochs):
         # forward pass and loss calculation
         outputs = net(inputs)
 
-        # get either dice loss or cross-entropy
-        if dice:
-            outputs = outputs[:,1,:,:].unsqueeze(dim=1)
-            loss = dice_loss(outputs, labels)
-        else:
-            labels = labels.squeeze(dim=1)
-            loss = criterion(outputs, labels)
+        # get dice loss
+        outputs = outputs[:,1,:,:].unsqueeze(dim=1)
+        loss = dice_loss(outputs, labels)
 
         # empty gradients, perform backward pass and update weights
         optimizer.zero_grad()
@@ -106,13 +97,10 @@ for epoch in range(epochs):
         if (i+1)%100 == 0: break
     
     # print statistics
-    if dice:
-        print('  [epoch %d] - train dice loss: %.3f' % (epoch + 1, running_loss/(i+1)))
-    else:
-        print('  [epoch %d] - train cross-entropy loss: %.3f' % (epoch + 1, running_loss/(i+1)))
+    print('  [epoch %d] - train dice loss: %.3f' % (epoch + 1, running_loss/(i+1)))
 
     # only validate every 10 epochs
-    #if (epoch+1)%10 != 0: continue
+    if (epoch+1)%10 != 0: continue
     
     # switch to eval mode
     net.eval()
@@ -129,9 +117,6 @@ for epoch in range(epochs):
         
         # inference
         outputs = net(inputs)
-        
-        # log softmax into softmax
-        if not dice: outputs = outputs.exp()
 
         # round outputs to either 0 or 1
         outputs = outputs[:, 1, :, :].unsqueeze(dim=1).round()
