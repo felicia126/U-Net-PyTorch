@@ -419,13 +419,13 @@ class UNetSmall(nn.Module):
         self.conv4_input =      nn.Conv2d(128, 512, 3, padding=1)
         self.conv4 =            nn.Conv2d(512, 512, 3, padding=1)
 
-        self.conv7_up =         nn.ConvTranspose2d(512, 128, 4, 4)
+        self.conv7_up =         nn.ConvTranspose2d(512, 128, 2, 2)
         self.conv7_input =      nn.Conv2d(128+128, 128, 3, padding=1)
         self.conv7 =            nn.Conv2d(128, 128, 3, padding=1)
-        self.conv8_up =         nn.ConvTranspose2d(128, 32, 4, 4)
+        self.conv8_up =         nn.ConvTranspose2d(128, 32, 2, 2)
         self.conv8_input =      nn.Conv2d(32+32, 32, 3, padding=1)
         self.conv8 =            nn.Conv2d(32, 32, 3, padding=1)
-        self.conv9_up =         nn.ConvTranspose2d(32, 8, 4, 4)
+        self.conv9_up =         nn.ConvTranspose2d(32, 8, 2, 2)
         self.conv9_input =      nn.Conv2d(8+8, 8, 3, padding=1)
         self.conv9 =            nn.Conv2d(8, 8, 3, padding=1)
         self.conv9_output =     nn.Conv2d(8, 2, 1)
@@ -451,19 +451,19 @@ class UNetSmall(nn.Module):
 
         #print "layer1: " + str(layer1.size())
 
-        layer2 = F.max_pool2d(layer1, 4)
+        layer2 = F.max_pool2d(layer1, 2)
         layer2 = F.relu(self.conv2_input(layer2))
         layer2 = F.relu(self.conv2(layer2))
 
         #print "layer2: " + str(layer2.size())
 
-        layer3 = F.max_pool2d(layer2, 4)
+        layer3 = F.max_pool2d(layer2, 2)
         layer3 = F.relu(self.conv3_input(layer3))
         layer3 = F.relu(self.conv3(layer3))
 
         #print "layer3: " + str(layer3.size())
 
-        layer4 = F.max_pool2d(layer3, 4)
+        layer4 = F.max_pool2d(layer3, 2)
         layer4 = F.relu(self.conv4_input(layer4))
         layer4 = F.relu(self.conv4(layer4))
 

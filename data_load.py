@@ -15,9 +15,9 @@ class CarDataSet(torch.utils.data.Dataset):
         self.image_directory = image_directory
         self.mask_directory = mask_directory
         self.image_files = os.listdir(image_directory)
-        self.image_files.sort()
         self.mask_files = os.listdir(mask_directory)
         self.image_files.sort()
+        self.mask_files.sort()
     
     def __getitem__(self, idx):
 
@@ -32,8 +32,8 @@ class CarDataSet(torch.utils.data.Dataset):
         labels[:, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx]))[:, :, 0]
 
         # zoom in
-        inputs = imresize(inputs, 0.2)
-        labels = imresize(labels, 0.2)
+        inputs = imresize(inputs, 0.125)
+        labels = imresize(labels, 0.125)
 
         # scale / normalize
         inputs = inputs / 255.0
