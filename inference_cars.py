@@ -20,10 +20,6 @@ test_folder = 'data/test'
 
 files = os.listdir(test_folder)
 
-# create result folder if neccessary
-if not os.path.isdir(result_folder):
-	os.makedirs(result_folder)
-
 # load network
 cuda = torch.cuda.is_available()
 net = torch.load("model_"+model_name+".pht")
