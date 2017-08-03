@@ -528,7 +528,7 @@ class _DownSample(nn.Sequential):
         self.add_module('norm', nn.BatchNorm2d(num_input_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(num_input_features, num_output_features,
-                                          kernel_size=4, stride=4, bias=False))
+                                          kernel_size=2, stride=2, bias=False))
 
 class _UpSample(nn.Sequential):
     def __init__(self, num_input_features, num_output_features):
@@ -536,7 +536,7 @@ class _UpSample(nn.Sequential):
         self.add_module('norm', nn.BatchNorm2d(num_input_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.ConvTranspose2d(num_input_features, num_output_features,
-                                          kernel_size=4, stride=4, bias=False))
+                                          kernel_size=2, stride=2, bias=False))
 
 class DenseUNet(nn.Module):
 
