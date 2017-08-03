@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import time
 from scipy.ndimage import zoom
+from scipy.misc import imsave
 from data_load import CarDataSetInference
 from torch.autograd import Variable
 
@@ -50,23 +51,26 @@ for i, data in enumerate(train_data):
 	outputs = outputs[:, 1, :, :].round()
 
 	for output, file_name in zip(outputs, file_names):
+		
+		imsave(os.path.join(result_folder,file_name+'.gif'), output)
+
 		# resize
-		output = zoom(output, 4)
-		output = output.round()
+		#output = zoom(output, 4)
+		#output = output.round()
 		# calculate run-length encoding
-		pixels = output.flatten()
-		pixels[0] = 0
-		pixels[-1] = 0
-		runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
-		runs[1::2] = runs[1::2] - runs[:-1:2]
-		rle = ' '.join(str(x) for x in runs)
-		rle = [file_name.split('.')[0], rle ]
-		lines.append(rle)
+		#pixels = output.flatten()
+		#pixels[0] = 0
+		#pixels[-1] = 0
+		#runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
+		#runs[1::2] = runs[1::2] - runs[:-1:2]
+		#rle = ' '.join(str(x) for x in runs)
+		#rle = [file_name.split('.')[0], rle ]
+		#lines.append(rle)
 print time.time()-start
 
 # save to csv file
-import csv
+#import csv
 
-with open("output.csv", "wb") as f:
-	writer = csv.writer(f)
-	writer.writerows(lines)
+#with open("output.csv", "wb") as f:
+#	writer = csv.writer(f)
+#	writer.writerows(lines)
