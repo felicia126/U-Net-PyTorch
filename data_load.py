@@ -45,8 +45,8 @@ class CarDataSet(torch.utils.data.Dataset):
 
         # augment
         if self.augment and np.random.rand() > 0.5:
-            inputs = np.fliplr(inputs)
-            labels = np.fliplr(labels)
+            inputs = np.fliplr(inputs).copy()
+            labels = np.fliplr(labels).copy()
 
         features, targets = torch.from_numpy(inputs).float(), torch.from_numpy(labels).long()
         return (features, targets)
