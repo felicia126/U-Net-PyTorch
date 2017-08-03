@@ -14,17 +14,16 @@ from torch.autograd import Variable
 
 ### variables ###
 
-model_name = 'DUNet'
+model_name = 'DUNet.25_1000s'
 
 augment = False
 dropout = False
 
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
 lr = 1e-2
-batch_size = 1
-num_samples = 100
-low_lr_epoch = 10
-epochs = 20
+batch_size = 8
+low_lr_epoch = [50, 80]
+epochs = 100
 
 #################
 
@@ -39,7 +38,7 @@ print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 cuda = torch.cuda.is_available()
 
 # network and optimizer
-net = networks.VNet_Xtra()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+net = networks.DenseUNet()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
@@ -63,7 +62,7 @@ for epoch in range(epochs):
     running_loss = 0.0
 
     # lower learning rate
-    if epoch == low_lr_epoch:
+    if epoch in low_lr_epoch:
         for param_group in optimizer.param_groups:
             lr = lr / 10
             param_group['lr'] = lr
@@ -94,7 +93,7 @@ for epoch in range(epochs):
         # save and print statistics
         running_loss += loss.data[0]
 
-        if (i+1)%100 == 0: break
+        if (i+1)%16 == 0: break
     
     # print statistics
     print('  [epoch %d] - train dice loss: %.3f' % (epoch + 1, running_loss/(i+1)))
