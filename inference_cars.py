@@ -2,9 +2,9 @@ import os
 import networks
 import numpy as np
 import torch
-from scipy.ndimage import imread
+import time
 from scipy.ndimage import zoom
-from scipy.misc import imresize
+from data_load import CarDataSetInference
 from torch.autograd import Variable
 
 ### variables ###
@@ -16,6 +16,8 @@ model_name = 'DUNet'
 result_folder = 'results'
 test_folder = 'data/test'
 
+batch_size = 5
+
 #################
 
 files = os.listdir(test_folder)
@@ -26,49 +28,45 @@ net = torch.load("model_"+model_name+".pht")
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 net.eval() # inference mode
 
+# data loader
+cars = CarDataSetInference(image_directory=test_folder)
+train_data = torch.utils.data.DataLoader(cars, batch_size=batch_size)
+
+start = time.time()
 lines = []
-for file_name in files:
 
-	inputs = np.zeros((1280, 1920, 3))
+for i, data in enumerate(train_data):
 
-	# load image and mask
-	inputs[:, 0:1918, :] = imread(os.path.join(test_folder, file_name))
-
-	# zoom in
-	inputs = imresize(inputs, 0.25)
-
-	# scale / normalize
-	inputs = inputs / 255.0
-
-	# transpose inputs and add empty axis to labels
-	inputs = np.expand_dims(inputs.transpose(2,0,1), 0)
+	# wrap data in Variables
+	inputs, file_names = data
 
 	# cast to torch
-	inputs = Variable(torch.from_numpy(inputs).float(), volatile=True)
+	inputs = Variable(inputs, volatile=True)
 	if cuda: inputs = inputs.cuda()
 
 	# inference
 	outputs = net(inputs)
-	outputs = outputs[0, 1, :, :].round()
 	outputs = outputs.data.cpu().numpy()
+	outputs = outputs[:, 1, :, :].round()
 
-	# resize
-	outputs = zoom(outputs, 4)
-	outputs = outputs.round()
-
-	# calculate run-length encoding
-	pixels = outputs.flatten()
-	pixels[0] = 0
-	pixels[-1] = 0
-	runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
-	runs[1::2] = runs[1::2] - runs[:-1:2]
-	rle = ' '.join(str(x) for x in runs)
-	rle = [file_name.split('.')[0], rle ]
-	lines.append(rle)
+	for output, file_name in zip(outputs, file_names):
+		# resize
+		output = zoom(output, 4)
+		output = output.round()
+		# calculate run-length encoding
+		pixels = output.flatten()
+		pixels[0] = 0
+		pixels[-1] = 0
+		runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
+		runs[1::2] = runs[1::2] - runs[:-1:2]
+		rle = ' '.join(str(x) for x in runs)
+		rle = [file_name.split('.')[0], rle ]
+		lines.append(rle)
+print time.time()-start
 
 # save to csv file
 import csv
 
 with open("output.csv", "wb") as f:
-    writer = csv.writer(f)
-    writer.writerows(lines)
+	writer = csv.writer(f)
+	writer.writerows(lines)

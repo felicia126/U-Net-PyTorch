@@ -55,6 +55,28 @@ class CarDataSet(torch.utils.data.Dataset):
 
         return len(self.image_files)
 
+class CarDataSetInference(torch.utils.data.Dataset):
+
+    def __init__(self, image_directory):
+
+        self.image_directory = image_directory
+        self.image_files = os.listdir(image_directory)
+
+    def __getitem__(self, idx):
+
+        file_name = self.image_files[idx]
+        inputs = np.zeros((1280, 1920, 3))
+        inputs[:, 0:1918, :] = imread(os.path.join(self.image_directory, file_name))
+        inputs = imresize(inputs, 0.25)
+        inputs = inputs / 255.0
+        inputs = inputs.transpose(2,0,1)
+        inputs = torch.from_numpy(inputs).float()
+        return (inputs, file_name)
+
+    def __len__(self):
+
+        return len(self.image_files)
+
 # Liver Dataset - segmentation task
 # when false selects both the liver and the tumor as positive labels
 class LiverDataSet(torch.utils.data.Dataset):
