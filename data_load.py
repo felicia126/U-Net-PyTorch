@@ -9,47 +9,68 @@ from scipy.misc import imresize
 # when false selects both the liver and the tumor as positive labels
 class CarDataSet(torch.utils.data.Dataset):
 
-    def __init__(self, image_directory, mask_directory, augment=False):
+    def __init__(self, image_directory, mask_directory, zoom=0.5, context=False):
 
-        self.augment = augment
         self.image_directory = image_directory
         self.mask_directory = mask_directory
         self.image_files = os.listdir(image_directory)
         self.mask_files = os.listdir(mask_directory)
         self.image_files.sort()
         self.mask_files.sort()
+        self.zoom = zoom
+        self.context = context
 
     def __getitem__(self, idx):
 
-        inputs = np.zeros((1280, 1920, 3))
-        labels = np.zeros((1280, 1920))
+        # zoom factor
+        z = self.zoom
 
         # random vertical offset 0, 1 or 2
-        i = int(np.random.rand()*3)
+        r = int(np.random.rand()*3)
 
-        # load image and mask
-        inputs[:, 0+i:1918+i, :] = imread(os.path.join(self.image_directory, self.image_files[idx]))
-        labels[:, 0+i:1918+i] = imread(os.path.join(self.mask_directory, self.mask_files[idx]))[:, :, 0]
+        if self.context:
+            # get label from index
+            labels = self.__getlabel__(idx, r)
+            labels = torch.from_numpy(labels).long()
+            # get inputs from images turned slightly to the left and right
+            if idx%16 == 0:
+                idx = [idx+15, idx, idx+1]
+            elif (idx-15)%16 == 0:
+                idx = [idx-1, idx, idx-15]
+            else:
+                idx = [idx-1, idx, idx+1]
+            # get all images and concat them
+            inputs = []
+            for i in idx:
+                inputs.append(self.__getinput__(i, r))
+            inputs = np.concatenate(inputs, axis=0)
+            inputs = torch.from_numpy(inputs).float()
+            return (inputs, labels)
+        else:
+            # just return the regular getitem
+            inputs = self.__getinput__(idx, r)
+            labels = self.__getlabel__(idx, r)
+            inputs = torch.from_numpy(inputs).float()
+            labels = torch.from_numpy(labels).long()
+            return (inputs, labels)
 
-        # zoom in
+    def __getinput__(self, idx, r):
+
+        inputs = np.zeros((1280, 1920, 3))
+        inputs[:, 0+r:1918+r, :] = imread(os.path.join(self.image_directory, self.image_files[idx]))
         inputs = imresize(inputs, 0.1)
-        labels = imresize(labels, 0.1)
-
-        # scale / normalize
         inputs = inputs / 255.0
-        labels = labels / 255
-
-        # transpose inputs and add empty axis to labels
         inputs = inputs.transpose(2,0,1)
+        return inputs
+
+    def __getlabel__(self, idx, r):
+
+        labels = np.zeros((1280, 1920))
+        labels[:, 0+r:1918+r] = imread(os.path.join(self.mask_directory, self.mask_files[idx]))[:, :, 0]
+        labels = imresize(labels, 0.1)
+        labels = labels / 255
         labels = np.expand_dims(labels, 0)
-
-        # augment
-        if self.augment and np.random.rand() > 0.5:
-            inputs = np.fliplr(inputs).copy()
-            labels = np.fliplr(labels).copy()
-
-        features, targets = torch.from_numpy(inputs).float(), torch.from_numpy(labels).long()
-        return (features, targets)
+        return labels
 
     def __len__(self):
 
