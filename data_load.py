@@ -79,6 +79,7 @@ class CarDataSetInference(torch.utils.data.Dataset):
 
         self.image_directory = image_directory
         self.image_files = os.listdir(image_directory)
+        self.image_files.sort()
         self.zoom = zoom
         self.context = context
 
