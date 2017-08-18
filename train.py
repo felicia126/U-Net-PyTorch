@@ -14,16 +14,16 @@ from torch.autograd import Variable
 
 ### variables ###
 
-model_name = 'DUNet.25_1000s'
+model_name = 'VNet_Xtra.1'
 
-augment = False
-dropout = False
+augment = True
+dropout = 0.25
 
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
 lr = 1e-2
-batch_size = 8
-low_lr_epoch = [50, 80]
-epochs = 100
+batch_size = 1
+low_lr_epoch = [20, 40]
+epochs = 60
 
 #################
 
@@ -38,14 +38,14 @@ print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 cuda = torch.cuda.is_available()
 
 # network and optimizer
-net = networks.DenseUNet()#DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=16, growth_rate=4, bn_size=4, drop_rate=0):
+net = networks.DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=32, growth_rate=32, bn_size=4, drop_rate=dropout)
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
 # data loader
 cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, augment=augment)
 
-val_idx = np.random.choice(range(cars.__len__()), 200, replace=False)
+val_idx = np.random.choice(range(cars.__len__()), 512, replace=False)
 train_idx = [i for i in list(range(cars.__len__())) if i not in val_idx]
 train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
 val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
@@ -93,7 +93,7 @@ for epoch in range(epochs):
         # save and print statistics
         running_loss += loss.data[0]
 
-        if (i+1)%16 == 0: break
+        if (i+1)%100 == 0: break
     
     # print statistics
     print('  [epoch %d] - train dice loss: %.3f' % (epoch + 1, running_loss/(i+1)))
