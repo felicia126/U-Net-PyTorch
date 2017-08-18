@@ -11,17 +11,21 @@ from torch.autograd import Variable
 ### variables ###
 
 # name of the model saved
-model_name = 'DUNet'
+model_name = 'Context.VNet.5'
 
 # directory where to store nii.gz or numpy files
 result_folder = 'results'
 test_folder = 'data/test'
 
-batch_size = 5
+batch_size = 1
 
 #################
 
 files = os.listdir(test_folder)
+
+# create result folder if neccessary
+if not os.path.isdir(result_folder):
+	os.makedirs(result_folder)
 
 # load network
 cuda = torch.cuda.is_available()
@@ -30,7 +34,7 @@ if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.devic
 net.eval() # inference mode
 
 # data loader
-cars = CarDataSetInference(image_directory=test_folder)
+cars = CarDataSetInference(image_directory=test_folder, context=True)
 train_data = torch.utils.data.DataLoader(cars, batch_size=batch_size)
 
 start = time.time()

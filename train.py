@@ -14,7 +14,7 @@ from torch.autograd import Variable
 
 ### variables ###
 
-model_name = 'VNet_Xtra.1'
+model_name = 'Context.VNet.5'
 
 augment = False
 dropout = False
@@ -23,7 +23,7 @@ dropout = False
 lr = 1e-2
 batch_size = 1
 low_lr_epoch = [20, 40]
-epochs = 60
+epochs = 5
 
 #################
 
@@ -43,7 +43,7 @@ if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.devic
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
 # data loader
-cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, context=True)
+cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, zoom=0.05, context=True)
 
 val_idx = np.random.choice(range(cars.__len__()), 512, replace=False)
 train_idx = [i for i in list(range(cars.__len__())) if i not in val_idx]
