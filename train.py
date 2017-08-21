@@ -14,16 +14,16 @@ from torch.autograd import Variable
 
 ### variables ###
 
-model_name = 'Context.VNet.5'
+model_name = 'ResuNet.5'
 
 augment = False
 dropout = False
 
 # learning rate, batch size, samples per epoch, epoch where to lower learning rate and total number of epochs
-lr = 1e-2
+lr = 1e-4
 batch_size = 1
-low_lr_epoch = [20, 40]
-epochs = 5
+low_lr_epoch = [30, 40]
+epochs = 50
 
 #################
 
@@ -38,14 +38,14 @@ print(str(epochs) + " epochs - lr: " + str(lr) + " - batch size: " + str(batch_s
 cuda = torch.cuda.is_available()
 
 # network and optimizer
-net = networks.VNet_Xtra(input_features=9)#networks.DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=32, growth_rate=32, bn_size=4, drop_rate=dropout)
+net = networks.ResuNet()#networks.DenseUNet(input_features=3, network_depth=4, block_length=4, num_init_features=32, growth_rate=32, bn_size=4, drop_rate=dropout)
 if cuda: net = torch.nn.DataParallel(net, device_ids=list(range(torch.cuda.device_count()))).cuda()
 optimizer = optim.Adam(net.parameters(), lr=lr)
 
 # data loader
-cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, zoom=0.05, context=True)
+cars = CarDataSet(image_directory=image_directory, mask_directory=mask_directory, zoom=0.5, context=False)
 
-val_idx = np.random.choice(range(cars.__len__()), 512, replace=False)
+val_idx = np.random.choice(range(cars.__len__()), 128, replace=False)
 train_idx = [i for i in list(range(cars.__len__())) if i not in val_idx]
 train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
 val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
