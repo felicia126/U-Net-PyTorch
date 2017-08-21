@@ -690,7 +690,7 @@ class InceptionBlockUp(nn.Sequential):
 
 class InceptionUNet(nn.Module):
 
-    def __init__(self, input_features=3, network_depth=4, block_length=4, num_init_features=16):
+    def __init__(self, input_features=3, network_depth=5, block_length=4, num_init_features=16):
         super(InceptionUNet, self).__init__()
 
         # Input
@@ -761,3 +761,109 @@ class InceptionUNet(nn.Module):
 
         x = self.conv1(x)
         return F.softmax(x)
+
+# ResuNet
+
+class ResLayer(nn.Module):
+
+    def __init__(self, n_features):
+        super(ResLayer, self).__init__()
+
+        self.conv_a = BasicConv2d(n_features, n_features, kernel_size=3, stride=1, padding=1)
+        self.conv_b = BasicConv2d(n_features, n_features, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        y = self.conv_a(x)
+        y = self.conv_b(y)
+        y = torch.add(y, x)
+        return y
+
+class SampleLayer(nn.Module):
+
+    def __init__(self, n_features, down=True):
+        super(SampleLayer, self).__init__()
+
+        if down:
+            n_features_out = n_features * 2
+            self.pool = nn.MaxPool2d(2)
+        else:
+            n_features_out = n_features // 4
+            self.pool = nn.UpsamplingNearest2d(scale_factor=2)
+
+        self.conv = BasicConv2d(n_features, n_features_out, kernel_size=1, stride=1)
+
+    def forward(self, x):
+        x = self.pool(x)
+        x = self.conv(x)
+        return x
+
+class ResBlock(nn.Sequential):
+    def __init__(self, num_layers, n_features):
+        super(ResBlock, self).__init__()
+        for i in range(num_layers):
+            layer = ResLayer(n_features=n_features)
+            self.add_module('denselayer%d' % (i + 1), layer)
+
+class ResuNet(nn.Module):
+
+    def __init__(self, input_features=3, network_depth=4, block_length=2, num_init_features=16):
+        super(ResuNet, self).__init__()
+
+        # Input
+
+        self.conv0 = BasicConv2d(input_features, num_init_features, kernel_size=3, stride=1, padding=1)
+        num_features = num_init_features
+
+        # Encoder
+
+        skip_connections = []
+        self.encoder_blocks = []
+        self.encoder_sample = []
+        for i in range(network_depth):
+            denseblock = ResBlock(num_layers=block_length, n_features=num_features)
+            self.encoder_blocks.append(denseblock)
+            transition = SampleLayer(n_features=num_features, down=True)
+            num_features = num_features * 2
+            self.encoder_sample.append(transition)
+        self.encoder_blocks = nn.ModuleList(self.encoder_blocks)
+        self.encoder_sample = nn.ModuleList(self.encoder_sample)
+
+        # Bottom
+
+        self.bottom_block = ResBlock(num_layers=block_length, n_features=num_features)
+
+        # Decoder
+
+        self.decoder_blocks = []
+        self.decoder_sample = []
+        for i in range(network_depth):
+            transition = SampleLayer(n_features=num_features, down=False)
+            num_features = num_features // 2
+            self.decoder_sample.append(transition)
+            denseblock = ResBlock(num_layers=block_length, n_features=num_features)
+            self.decoder_blocks.append(denseblock)
+        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+        self.decoder_sample = nn.ModuleList(self.decoder_sample)
+
+        # Output
+        self.conv1 = nn.Conv2d(num_features, 2, kernel_size=3, stride=1, padding=1, bias=False)
+
+    def forward(self, x):
+
+        x = self.conv0(x)
+
+        skip_connections = []
+        for (denseblock, transition) in zip(self.encoder_blocks, self.encoder_sample):
+            x = denseblock(x)
+            skip_connections.append(x)
+            x = transition(x)
+
+
+        x = self.bottom_block(x)
+        
+        for (transition, denseblock, skip) in zip(self.decoder_sample, self.decoder_blocks, skip_connections[::-1]):
+            x = transition(x)
+            x = torch.cat([x, skip[:,::2,:,:]], 1)
+            x = denseblock(x)
+
+        return F.softmax(self.conv1(x))
