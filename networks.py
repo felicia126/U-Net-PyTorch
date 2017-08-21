@@ -618,3 +618,146 @@ class DenseUNet(nn.Module):
         x = self.conv1(self.relu1(self.norm1(x)))
         #print x.size()
         return F.softmax(x)
+
+# InceptionUNet
+
+class BasicConv2d(nn.Module):
+
+    def __init__(self, in_planes, out_planes, kernel_size, stride, padding=0):
+        super(BasicConv2d, self).__init__()
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
+        self.bn = nn.BatchNorm2d(out_planes, eps=0.001, momentum=0, affine=True)
+        self.relu = nn.ReLU(inplace=False)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.relu(x)
+        return x
+
+class InceptionLayer(nn.Module):
+
+    def __init__(self, input_features, hidden_features, output_features, scale=1.0):
+        super(InceptionLayer, self).__init__()
+
+        self.scale = scale
+
+        self.branch0 = BasicConv2d(input_features, hidden_features, kernel_size=1, stride=1)
+
+        self.branch1 = nn.Sequential(
+            BasicConv2d(input_features, hidden_features, kernel_size=1, stride=1),
+            BasicConv2d(hidden_features, hidden_features, kernel_size=3, stride=1, padding=1)
+        )
+        
+        self.branch2 = nn.Sequential(
+            BasicConv2d(input_features, hidden_features, kernel_size=1, stride=1),
+            BasicConv2d(hidden_features, int(hidden_features * 1.5), kernel_size=3, stride=1, padding=1),
+            BasicConv2d(int(hidden_features * 1.5), hidden_features * 2, kernel_size=3, stride=1, padding=1)
+        )
+
+        self.conv2d = nn.Conv2d(hidden_features * 4, output_features, kernel_size=1, stride=1)
+        self.relu = nn.ReLU(inplace=False)
+
+    def forward(self, x):
+        x0 = self.branch0(x)
+        x1 = self.branch1(x)
+        x2 = self.branch2(x)
+        out = torch.cat((x0, x1, x2), 1)
+        out = out * self.scale + x
+        out = self.conv2d(out)
+        out = self.relu(out)
+        return out
+
+class InceptionBlockDown(nn.Sequential):
+    def __init__(self, num_layers, input_features, output_features):
+        super(InceptionBlockDown, self).__init__()
+        for i in range(num_layers):
+            if i==0:
+                layer = InceptionLayer(input_features=input_features, hidden_features=input_features//4, output_features=output_features)
+            else:
+                layer = InceptionLayer(input_features=output_features, hidden_features=output_features//4, output_features=output_features)
+            self.add_module('denselayer%d' % (i + 1), layer)
+
+class InceptionBlockUp(nn.Sequential):
+    def __init__(self, num_layers, input_features, output_features):
+        super(InceptionBlockUp, self).__init__()
+        for i in range(num_layers):
+            if i==(num_layers-1):
+                layer = InceptionLayer(input_features=input_features, hidden_features=input_features//4, output_features=output_features)
+            else:
+                layer = InceptionLayer(input_features=input_features, hidden_features=input_features//4, output_features=input_features)
+            self.add_module('denselayer%d' % (i + 1), layer)
+
+class InceptionUNet(nn.Module):
+
+    def __init__(self, input_features=3, network_depth=4, block_length=4, num_init_features=16):
+        super(InceptionUNet, self).__init__()
+
+        # Input
+
+        self.conv0 = nn.Conv2d(input_features, num_init_features, kernel_size=3, stride=1, padding=1, bias=False)
+        #self.down0 = transition = _DownSample(num_input_features=num_init_features, num_output_features=num_init_features)
+        #self.pool0 = nn.MaxUnpool2d(kernel_size=3, stride=2, padding=1, return_indices=True)
+
+        num_features = num_init_features
+
+        # Encoder
+
+        skip_connections = []
+        self.encoder_blocks = []
+        self.encoder_sample = []
+        for i in range(network_depth-1):
+            denseblock = InceptionBlockDown(num_layers=block_length, input_features=num_features, output_features=num_features * 2)
+            num_features = num_features * 2
+            skip_connections.append(num_features//2)
+            self.encoder_blocks.append(denseblock)
+            transition = nn.MaxPool2d(2)
+            self.encoder_sample.append(transition)
+        self.encoder_blocks = nn.ModuleList(self.encoder_blocks)
+        self.encoder_sample = nn.ModuleList(self.encoder_sample)
+
+        # Bottom
+
+        self.bottom_block_down = InceptionBlockDown(num_layers=block_length, input_features=num_features, output_features=num_features * 2)
+        num_features = num_features * 2
+        self.bottom_block_up = InceptionBlockUp(num_layers=block_length, input_features=num_features, output_features=num_features // 4)
+        num_features = num_features // 2
+
+        # Decoder
+
+        self.decoder_blocks = []
+        self.decoder_sample = []
+        for i, skip in zip(range(network_depth-1), skip_connections[::-1]):
+            transition = nn.UpsamplingNearest2d(scale_factor=2)
+            self.decoder_sample.append(transition)
+            denseblock = InceptionBlockUp(num_layers=block_length, input_features=num_features, output_features=num_features // 4)
+            num_features = num_features // 2
+            self.decoder_blocks.append(denseblock)
+        self.decoder_blocks = nn.ModuleList(self.decoder_blocks)
+        self.decoder_sample = nn.ModuleList(self.decoder_sample)
+
+        # Output
+        self.conv1 = nn.Conv2d(num_features // 2, 2, kernel_size=3, stride=1, padding=1, bias=False)
+
+    def forward(self, x):
+
+        x = self.conv0(x)
+
+        skip_connections = []
+        #print x.size()
+        for (denseblock, transition) in zip(self.encoder_blocks, self.encoder_sample):
+            x = denseblock(x)
+            skip_connections.append(x)
+            x = transition(x)
+        #    print x.size()
+        #print "bottom"
+        x = self.bottom_block_down(x)
+        x = self.bottom_block_up(x)
+        
+        for (transition, denseblock, skip) in zip(self.decoder_sample, self.decoder_blocks, skip_connections[::-1]):
+            x = transition(x)
+            x = torch.cat([x, skip[:,::2,:,:]], 1)
+            x = denseblock(x)
+
+        x = self.conv1(x)
+        return F.softmax(x)
